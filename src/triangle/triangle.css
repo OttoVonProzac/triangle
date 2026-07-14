@@ -1,0 +1,193 @@
+.page{
+  width:100vw;
+  height:100vh;
+  display:grid;
+  place-items:center;
+  padding:.55vmin;
+}
+
+.stage{
+  position:relative;
+  width:min(99vw, calc(99vh * 4 / 3));
+  aspect-ratio:4/3;
+  max-height:99vh;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 50% 47%, rgba(255,255,255,.98), rgba(255,255,255,.56) 36%, transparent 66%);
+}
+
+.sector{
+  position:absolute;
+  z-index:2;
+  display:flex;
+  flex-direction:column;
+  gap:.45%;
+}
+
+.sector-blue{
+  left:1.2%;
+  top:3.2%;
+  width:42.2%;
+  height:56.2%;
+}
+
+.sector-violet{
+  right:1.2%;
+  top:3.2%;
+  width:42.2%;
+  height:56.2%;
+}
+
+.sector-teal{
+  left:7.5%;
+  top:61.5%;
+  width:85%;
+  height:36.8%;
+  gap:.55%;
+}
+
+.row{
+  display:flex;
+  min-width:0;
+  min-height:0;
+  gap:.55%;
+  transition:flex-grow .18s ease;
+}
+
+.shell{
+  min-width:0;
+  min-height:0;
+  display:flex;
+  align-items:stretch;
+  justify-content:stretch;
+  transition:flex-grow .18s ease, width .18s ease, margin .18s ease;
+}
+
+.single-row .shell{
+  flex:none;
+}
+
+.sector-blue .single-row{
+  justify-content:flex-start;
+  padding-right:12.2%;
+}
+
+.sector-violet .single-row{
+  justify-content:flex-end;
+  padding-left:12.2%;
+}
+
+.sector-teal .top-row{
+  padding-inline:0;
+}
+
+/* The lower pair stays somewhat narrower, but the whole green sector now
+   reaches broadly toward both sides of the page. */
+.sector-teal .bottom-row{
+  padding-inline:8.5%;
+}
+
+.sector-teal .bottom-row .shell{
+  margin-inline:0;
+}
+
+.bubble{
+  --fill:#ddd;
+  --line:#999;
+  position:relative;
+  width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+  display:grid;
+  place-items:center;
+  padding:clamp(.42rem,.78vw,.9rem) clamp(.65rem,1.02vw,1.15rem);
+  border:clamp(2px,.22vw,4px) solid var(--line);
+  background:
+    radial-gradient(circle at 37% 28%, rgba(255,255,255,.43), transparent 45%),
+    var(--fill);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  transition:border-radius .18s ease;
+}
+
+.bubble{
+  border-radius:42% 58% 46% 54% / 51% 45% 55% 49%;
+}
+
+.row:nth-child(2) .bubble{
+  border-radius:54% 46% 57% 43% / 45% 53% 47% 55%;
+}
+
+.row:nth-child(3) .bubble,
+.sector-teal .bottom-row .bubble{
+  border-radius:38% 62% 42% 58% / 55% 44% 56% 45%;
+}
+
+.blue{
+  --fill:var(--blue);
+  --line:var(--blue-line);
+}
+
+.violet{
+  --fill:var(--violet);
+  --line:var(--violet-line);
+}
+
+.teal{
+  --fill:var(--teal);
+  --line:var(--teal-line);
+}
+
+.editable{
+  width:100%;
+  max-width:100%;
+  max-height:100%;
+  outline:none;
+  border:0;
+  overflow:hidden;
+  text-align:center;
+  font-weight:800;
+  line-height:1.04;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  cursor:text;
+  user-select:text;
+}
+
+.editable:focus{
+  border-radius:.7rem;
+  background:rgba(255,255,255,.18);
+  box-shadow:0 0 0 .36rem rgba(255,255,255,.14);
+}
+
+.triangle{
+  position:absolute;
+  z-index:10;
+  left:50%;
+  top:47.9%;
+  width:25%;
+  aspect-ratio:1.08/.86;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  filter:drop-shadow(0 .55rem .8rem rgba(165,121,0,.13));
+}
+
+.triangle svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+#measure{
+  position:absolute;
+  left:-10000px;
+  top:-10000px;
+  visibility:hidden;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  font-weight:800;
+  line-height:1.04;
+}
+
