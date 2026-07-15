@@ -49,6 +49,26 @@ test("legacy localStorage migration converts stable bubble ids to canonical grap
   );
 });
 
+test("localStorage repository saves and loads a per-user canonical draft", async () => {
+  const storage = memoryStorage();
+  const graph = createDefaultGraphState();
+  graph.content.bubbles["blue-learn"].text = "Draft text";
+  const repository = new LocalStorageGraphRepository({
+    storage,
+    userId: "user-1"
+  });
+
+  await repository.save(graph);
+  const result = await repository.load();
+
+  assert.equal(result.exists, true);
+  assert.equal(result.graph.content.bubbles["blue-learn"].text, "Draft text");
+  assert.equal(
+    storage.getItem("triangle-graph-draft-v1:user-1").includes("Draft text"),
+    true
+  );
+});
+
 test("controller initializes default graph state when no remote or legacy state exists", async () => {
   const saves = [];
   const controller = new GraphController({

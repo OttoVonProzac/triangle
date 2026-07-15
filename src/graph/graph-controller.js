@@ -51,10 +51,20 @@ export class GraphController {
   }
 
   async initialize() {
-    const remote = await this.remoteRepository.load();
+    let remote = null;
+    try {
+      remote = await this.remoteRepository.load();
+    } catch (error) {
+      this.lastError = error;
+      this.#setStatus(SAVE_STATUS.ERROR);
 
-    if (remote.exists) {
-      this.state = normalizeGraphState(remote.graph, { now: this.now });
+      const fallback = await this.#loadLocalFallback();
+      if (fallback?.exists) {
+        this.state = normalizeGraphState(fallback.graph, { now: this.now });
+      } else {
+        this.state = createDefaultGraphState({ now: this.now });
+      }
+
       this.dirty = false;
       this.revision = 0;
       this.lastSavedRevision = 0;
@@ -62,10 +72,17 @@ export class GraphController {
       return this.getState();
     }
 
-    let fallback = null;
-    if (this.localRepository) {
-      fallback = await this.localRepository.load();
+    if (remote.exists) {
+      this.state = normalizeGraphState(remote.graph, { now: this.now });
+      this.dirty = false;
+      this.revision = 0;
+      this.lastSavedRevision = 0;
+      this.#saveLocalSnapshot(this.state);
+      this.#notify();
+      return this.getState();
     }
+
+    const fallback = await this.#loadLocalFallback();
 
     if (fallback?.exists) {
       this.state = normalizeGraphState(fallback.graph, { now: this.now });
@@ -78,6 +95,19 @@ export class GraphController {
     this.#notify();
     this.scheduleSave();
     return this.getState();
+  }
+
+  async #loadLocalFallback() {
+    if (!this.localRepository) {
+      return null;
+    }
+
+    try {
+      return await this.localRepository.load();
+    } catch (error) {
+      this.lastError = error;
+      return null;
+    }
   }
 
   getState() {
@@ -140,6 +170,7 @@ export class GraphController {
     this.dirty = true;
     this.revision += 1;
     this.lastError = null;
+    this.#saveLocalSnapshot(this.state);
     this.#notify();
     this.scheduleSave();
   }
@@ -226,6 +257,7 @@ export class GraphController {
           this.dirty = false;
           this.lastSavedRevision = revisionToSave;
           this.lastError = null;
+          this.#saveLocalSnapshot(this.state);
           this.#setStatus(SAVE_STATUS.SAVED);
           return {
             ok: true,
@@ -271,6 +303,18 @@ export class GraphController {
     };
 
     this.listeners.forEach(listener => listener(payload));
+  }
+
+  #saveLocalSnapshot(graph) {
+    if (!this.localRepository || typeof this.localRepository.save !== "function") {
+      return;
+    }
+
+    try {
+      this.localRepository.save(graph);
+    } catch (error) {
+      this.lastError = error;
+    }
   }
 }
 

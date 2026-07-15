@@ -35,7 +35,9 @@ export const triangleClient = {
 
     graphController = new GraphController({
       remoteRepository: new RemoteFileGraphRepository({ getAccessToken }),
-      localRepository: new LocalStorageGraphRepository()
+      localRepository: new LocalStorageGraphRepository({
+        userId: session?.user?.id || ""
+      })
     });
 
     await graphController.initialize();

@@ -2,6 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GraphController } from "../src/graph/graph-controller.js";
 import { createDefaultGraphState } from "../src/graph/graph-state.js";
+import { LocalStorageGraphRepository } from "../src/persistence/local-storage-graph-repository.js";
+
+function memoryStorage(entries = {}) {
+  const values = new Map(Object.entries(entries));
+
+  return {
+    getItem(key) {
+      return values.has(key) ? values.get(key) : null;
+    },
+    setItem(key, value) {
+      values.set(key, value);
+    }
+  };
+}
 
 async function waitFor(predicate) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -104,6 +118,75 @@ test("remote state wins over legacy local state and is not overwritten on initia
     "Remote graph"
   );
   assert.equal(saveCount, 0);
+  controller.destroy();
+});
+
+test("remote load failure still initializes without auto-saving fallback state", async () => {
+  const localGraph = createDefaultGraphState();
+  localGraph.content.bubbles["blue-learn"].text = "Local fallback";
+  let saveCount = 0;
+
+  const controller = new GraphController({
+    remoteRepository: {
+      async load() {
+        throw new Error("API unavailable");
+      },
+      async save(graph) {
+        saveCount += 1;
+        return { graph };
+      }
+    },
+    localRepository: {
+      load() {
+        return {
+          exists: true,
+          graph: localGraph
+        };
+      },
+      save(graph) {
+        return { graph };
+      }
+    },
+    debounceMs: 1
+  });
+
+  await controller.initialize();
+  await new Promise(resolve => setTimeout(resolve, 5));
+
+  assert.equal(
+    controller.getState().content.bubbles["blue-learn"].text,
+    "Local fallback"
+  );
+  assert.equal(controller.getStatus().status, "error");
+  assert.equal(controller.isDirty(), false);
+  assert.equal(saveCount, 0);
+  controller.destroy();
+});
+
+test("malformed legacy fallback does not prevent initialization", async () => {
+  const controller = new GraphController({
+    remoteRepository: {
+      async load() {
+        return { exists: false };
+      },
+      async save(graph) {
+        return { graph };
+      }
+    },
+    localRepository: {
+      load() {
+        throw new Error("bad local data");
+      },
+      save(graph) {
+        return { graph };
+      }
+    }
+  });
+
+  const graph = await controller.initialize();
+
+  assert.equal(graph.graphId, "triangle");
+  assert.equal(controller.isDirty(), true);
   controller.destroy();
 });
 
@@ -216,4 +299,55 @@ test("failed save keeps dirty state and can be retried", async () => {
     "Retained after failure"
   );
   controller.destroy();
+});
+
+test("failed remote edits survive logout and login through local draft", async () => {
+  const storage = memoryStorage();
+  const localRepository = () =>
+    new LocalStorageGraphRepository({
+      storage,
+      userId: "user-1"
+    });
+
+  const firstController = new GraphController({
+    remoteRepository: {
+      async load() {
+        throw new Error("API unavailable");
+      },
+      async save() {
+        throw new Error("API unavailable");
+      }
+    },
+    localRepository: localRepository(),
+    debounceMs: 1
+  });
+
+  await firstController.initialize();
+  firstController.setBubbleText("blue-learn", "Survives logout");
+  const failed = await firstController.flush({ timeoutMs: null });
+
+  assert.equal(failed.ok, false);
+  assert.equal(firstController.isDirty(), true);
+  firstController.destroy();
+
+  const secondController = new GraphController({
+    remoteRepository: {
+      async load() {
+        throw new Error("API unavailable");
+      },
+      async save() {
+        throw new Error("API unavailable");
+      }
+    },
+    localRepository: localRepository()
+  });
+
+  await secondController.initialize();
+
+  assert.equal(
+    secondController.getState().content.bubbles["blue-learn"].text,
+    "Survives logout"
+  );
+  assert.equal(secondController.getStatus().status, "error");
+  secondController.destroy();
 });

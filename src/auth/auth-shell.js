@@ -31,6 +31,7 @@ export function createAuthShell({ root, authController, protectedClient }) {
   let authUnsubscribe = null;
   let currentSession = null;
   let mountGeneration = 0;
+  let authAction = null;
 
   function setState(nextState) {
     state = nextState;
@@ -188,30 +189,37 @@ export function createAuthShell({ root, authController, protectedClient }) {
   }
 
   async function handleLogin({ email, password }, view) {
+    authAction = "signing-in";
     const result = await authController.signIn(email, password);
 
     if (!result.ok) {
+      authAction = null;
       view.setMessage(result.error.message, "error");
       return;
     }
 
     if (!result.session) {
+      authAction = null;
       view.setMessage("Session unavailable. Try signing in again.", "error");
       return;
     }
 
     await showAuthenticated(result.session);
+    authAction = null;
   }
 
   async function handleSignup({ email, password }, view) {
+    authAction = "signing-in";
     const result = await authController.signUp(email, password);
 
     if (!result.ok) {
+      authAction = null;
       view.setMessage(result.error.message, "error");
       return;
     }
 
     if (!result.session) {
+      authAction = null;
       view.setMessage(
         "Account created. Check your email before signing in.",
         "info"
@@ -220,19 +228,23 @@ export function createAuthShell({ root, authController, protectedClient }) {
     }
 
     await showAuthenticated(result.session);
+    authAction = null;
   }
 
   async function handleLogout() {
+    authAction = "signing-out";
     await unmountProtectedClient();
 
     const result = await authController.signOut();
 
     if (!result.ok) {
+      authAction = null;
       renderShellError(result.error.message);
       return;
     }
 
     await showUnauthenticated();
+    authAction = null;
   }
 
   function handleAuthStateChange(event, session) {
@@ -241,6 +253,9 @@ export function createAuthShell({ root, authController, protectedClient }) {
     }
 
     if (event === "SIGNED_OUT" || !session) {
+      if (authAction === "signing-out") {
+        return;
+      }
       showUnauthenticated();
       return;
     }
@@ -251,6 +266,9 @@ export function createAuthShell({ root, authController, protectedClient }) {
       event === "USER_UPDATED" ||
       event === "INITIAL_SESSION"
     ) {
+      if (authAction === "signing-in" && event === "SIGNED_IN") {
+        return;
+      }
       showAuthenticated(session);
     }
   }
