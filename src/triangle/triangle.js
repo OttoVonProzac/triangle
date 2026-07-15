@@ -1,5 +1,6 @@
 const triangleMarkup = `
 <div class="page">
+  <p class="persistence-status" data-persistence-status aria-live="polite"></p>
   <main class="stage" id="stage" aria-label="Carte interactive du développement de l’enfant">
 
     <section class="sector sector-blue" data-orientation="vertical" aria-label="Développement de l’enfant">
@@ -177,12 +178,17 @@ function getTriangleDebug() {
   return window.__triangleDebug;
 }
 
-export function mountTriangle(container) {
+export function mountTriangle(container, { graphController }) {
   let disposed = false;
   const animationFrames = new Set();
   const cleanupListeners = [];
   const mutationObservers = [];
+  const cleanupSubscriptions = [];
   const debug = getTriangleDebug();
+
+  if (!graphController) {
+    throw new Error("mountTriangle requires a graphController.");
+  }
 
   if (debug) {
     debug.mounts += 1;
@@ -194,22 +200,45 @@ export function mountTriangle(container) {
   const sectors = [...container.querySelectorAll(".sector")];
   const bubbles = [...container.querySelectorAll(".bubble")];
   const measure = container.querySelector("#measure");
+  const persistenceStatus = container.querySelector("[data-persistence-status]");
 
   if (!stage || !measure) {
     throw new Error("Triangle markup could not be mounted.");
   }
 
-  const storageKey = "child-development-map-v5";
-  const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
-
-  if (stored && typeof stored === "object") {
+  function applyGraphState(graphState) {
     bubbles.forEach(bubble => {
       const id = bubble.dataset.id;
-      if (typeof stored[id] === "string") {
-        bubble.querySelector(".editable").innerText = stored[id];
+      const text = graphState.content.bubbles[id]?.text;
+
+      if (typeof text === "string") {
+        bubble.querySelector(".editable").innerText = text;
       }
     });
   }
+
+  function updatePersistenceStatus({ status, dirty }) {
+    if (!persistenceStatus) {
+      return;
+    }
+
+    const visibleStatus =
+      status === "saving"
+        ? "Saving..."
+        : status === "saved" && !dirty
+          ? "Saved"
+          : status === "error"
+            ? "Save failed"
+            : "";
+
+    persistenceStatus.textContent = visibleStatus;
+    persistenceStatus.dataset.status = status;
+  }
+
+  applyGraphState(graphController.getState());
+  cleanupSubscriptions.push(
+    graphController.subscribe(({ status }) => updatePersistenceStatus(status))
+  );
 
   function scheduleFrame(callback) {
     const frameId = requestAnimationFrame(() => {
@@ -237,12 +266,15 @@ export function mountTriangle(container) {
     });
   }
 
-  function save() {
-    const payload = {};
-    bubbles.forEach(bubble => {
-      payload[bubble.dataset.id] = bubble.querySelector(".editable").innerText;
-    });
-    localStorage.setItem(storageKey, JSON.stringify(payload));
+  function readEditorText(editor) {
+    return (editor.innerText || "").replace(/\r/g, "");
+  }
+
+  function updateGraphState(bubble) {
+    graphController.setBubbleText(
+      bubble.dataset.id,
+      readEditorText(bubble.querySelector(".editable"))
+    );
   }
 
   function plainText(editor) {
@@ -356,9 +388,9 @@ export function mountTriangle(container) {
 
   function editOccurred(bubble) {
     const sector = bubble.closest(".sector");
+    updateGraphState(bubble);
     scheduleFrame(() => {
       layoutSector(sector);
-      save();
     });
   }
 
@@ -409,6 +441,7 @@ export function mountTriangle(container) {
       debug.unmounts += 1;
     }
     cleanupListeners.forEach(cleanup => cleanup());
+    cleanupSubscriptions.forEach(cleanup => cleanup());
     mutationObservers.forEach(observer => {
       observer.disconnect();
       if (debug) {

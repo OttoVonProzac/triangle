@@ -6,6 +6,9 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "vite",
+    "server": "node server/server.js",
+    "start": "node server/server.js",
+    "test": "node --test",
     "build": "vite build",
     "preview": "vite preview"
   },

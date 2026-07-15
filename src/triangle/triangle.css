@@ -1,9 +1,35 @@
 .page{
+  position:relative;
   width:100vw;
   height:100vh;
   display:grid;
   place-items:center;
   padding:.55vmin;
+}
+
+.persistence-status{
+  position:absolute;
+  z-index:30;
+  left:.85rem;
+  bottom:.75rem;
+  min-height:1.2rem;
+  margin:0;
+  padding:.28rem .48rem;
+  border-radius:6px;
+  background:rgba(255,255,255,.72);
+  color:rgba(23,26,34,.72);
+  font-size:.78rem;
+  font-weight:800;
+  line-height:1;
+  pointer-events:none;
+}
+
+.persistence-status:empty{
+  display:none;
+}
+
+.persistence-status[data-status="error"]{
+  color:#9a2d2d;
 }
 
 .stage{

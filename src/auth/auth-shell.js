@@ -223,6 +223,8 @@ export function createAuthShell({ root, authController, protectedClient }) {
   }
 
   async function handleLogout() {
+    await unmountProtectedClient();
+
     const result = await authController.signOut();
 
     if (!result.ok) {

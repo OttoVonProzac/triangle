@@ -1,6 +1,6 @@
 # Triangle Auth Shell
 
-Triangle is a static client app mounted behind a reusable Supabase email/password auth shell.
+Triangle is a static client app mounted behind a reusable Supabase email/password auth shell. Authenticated graph content is stored as one human-readable JSON file per Supabase user. The app does not use a database for graph persistence.
 
 ## Setup
 
@@ -13,9 +13,12 @@ Triangle is a static client app mounted behind a reusable Supabase email/passwor
 ```env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+GRAPH_DATA_DIR=./data/users
 ```
 
-Only the public anonymous key belongs in this frontend. Do not use a service-role key.
+Only the public anonymous key belongs in this frontend. Do not use a service-role key. The server can read `SUPABASE_URL`/`SUPABASE_ANON_KEY`; it also accepts the `VITE_` names for local convenience.
 
 ## Local Development
 
@@ -25,11 +28,20 @@ Install dependencies:
 pnpm install
 ```
 
-Run locally:
+Run the frontend-only Vite dev server:
 
 ```sh
 pnpm dev
 ```
+
+Run the complete local app from the production build:
+
+```sh
+pnpm build
+pnpm start
+```
+
+`pnpm start` serves `dist/` and the graph API from one Node process on the same origin. `pnpm server` is an alias for the same server command.
 
 Build for production:
 
@@ -48,6 +60,8 @@ pnpm preview
 `src/main.js` is the composition point. It creates the Supabase-backed `AuthController`, creates the auth shell, and injects one protected client dependency.
 
 Auth modules live in `src/auth/` and do not import Triangle. Triangle-specific mounting lives in `src/clients/triangle-client.js` and `src/triangle/`.
+
+Graph state lives in `src/graph/`. Triangle display consumes a graph controller but does not know whether persistence is backed by localStorage, files, or a future database. Persistence adapters live in `src/persistence/` and server-side file storage lives in `server/persistence/`.
 
 To replace Triangle with another protected static client, change the protected client import and injected dependency in `src/main.js`:
 
@@ -80,4 +94,40 @@ The protected client contract is documented in `src/clients/protected-client.js`
 ## Security Boundary
 
 MVP 0 gates access through the application UI. Static assets are still shipped to the browser, so this should not be treated as a hard content-protection boundary. Future protected data should be fetched only after authentication.
+
+## Graph Persistence
+
+The graph API is:
+
+```http
+GET /api/graph
+PUT /api/graph
+Authorization: Bearer <supabase-access-token>
+```
+
+The server verifies the Supabase access token before deriving the user file path. It prefers `supabase.auth.getClaims(accessToken)` and uses the verified `sub` claim as the user id. If claims verification is unavailable or incompatible with the project configuration, it falls back to `supabase.auth.getUser(accessToken)`, which verifies the token with Supabase Auth. The server never decodes JWTs without signature verification.
+
+Files are written under:
+
+```text
+<GRAPH_DATA_DIR>/<verified-user-id>/graph.json
+```
+
+`GRAPH_DATA_DIR` defaults to `./data/users`. The browser never sends a filesystem path, and client-provided `userId` values are ignored.
+
+Stored graph files use schema version `1`, graph id `triangle`, formatted UTF-8 JSON, and content-only bubble text keyed by the stable Triangle `data-id` values. Transient layout measurements are not persisted.
+
+Current conservative limits:
+
+```text
+GRAPH_BODY_LIMIT_BYTES=65536
+GRAPH_FILE_SIZE_LIMIT_BYTES=131072
+MAX_BUBBLE_TEXT_LENGTH=2000
+```
+
+`data/users/` is ignored by git; keep real user files out of commits.
+
+## Hosting Note
+
+This MVP requires a durable writable filesystem for `GRAPH_DATA_DIR`. Hosts with ephemeral filesystems, read-only deployments, or per-instance local disks can lose data or split one user's graph across instances unless that directory is mounted on persistent shared storage.
 
