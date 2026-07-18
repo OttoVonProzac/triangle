@@ -66,6 +66,7 @@
 }
 
 .auth-actions button,
+.auth-print,
 .auth-logout,
 .auth-card > button{
   min-height:2.45rem;
@@ -81,6 +82,7 @@
 }
 
 .auth-secondary,
+.auth-print,
 .auth-logout,
 .auth-card > button{
   background:rgba(255,255,255,.9);
@@ -117,11 +119,20 @@
   z-index:20;
   top:.75rem;
   right:.75rem;
+  display:flex;
+  gap:.55rem;
+  align-items:center;
 }
 
 .auth-shell__client{
   position:absolute;
   inset:0;
   overflow:hidden;
+}
+
+@media print{
+  .auth-shell__bar{
+    display:none;
+  }
 }
 

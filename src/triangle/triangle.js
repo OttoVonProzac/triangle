@@ -116,8 +116,8 @@ professionnelle</div>
             <stop offset="0" stop-color="#fff8da"/>
             <stop offset="1" stop-color="#ffefae"/>
           </linearGradient>
-          <path id="leftEdge" d="M48 292 L200 36"/>
-          <path id="rightEdge" d="M200 36 L352 292"/>
+          <path id="leftLabelPath" d="M76 278 L200 70"/>
+          <path id="rightLabelPath" d="M200 70 L324 278"/>
         </defs>
 
         <polygon points="200,22 28,304 372,304"
@@ -125,14 +125,15 @@ professionnelle</div>
                  stroke="#efc446"
                  stroke-width="5"/>
 
-        <text font-size="23" font-weight="800" fill="#171a22">
-          <textPath href="#leftEdge" startOffset="28%" text-anchor="middle">
+        <text font-size="21" font-weight="800" fill="#171a22">
+          <textPath href="#leftLabelPath" startOffset="51%" text-anchor="middle"
+                    textLength="210" lengthAdjust="spacingAndGlyphs">
             Développement de l’enfant
           </textPath>
         </text>
 
         <text font-size="23" font-weight="800" fill="#171a22">
-          <textPath href="#rightEdge" startOffset="57%" text-anchor="middle">
+          <textPath href="#rightLabelPath" startOffset="55%" text-anchor="middle">
             Rôle parental
           </textPath>
         </text>
