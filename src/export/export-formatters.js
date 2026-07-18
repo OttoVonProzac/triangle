@@ -1,7 +1,9 @@
-import { cloneGraphState } from "../graph/graph-state.js";
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
 
-export function buildJsonExport(graphState) {
-  return JSON.stringify(cloneGraphState(graphState), null, 2) + "\n";
+export function buildJsonExport(value) {
+  return JSON.stringify(clone(value), null, 2) + "\n";
 }
 
 export function buildMarkdownExport(model) {

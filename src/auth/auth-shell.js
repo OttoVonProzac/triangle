@@ -1,4 +1,8 @@
 import { assertProtectedClient } from "../clients/protected-client.js";
+import {
+  graphShellElements,
+  graphShellMarkup
+} from "../workspace/graph-shell-layout.js";
 import { createAuthView } from "./auth-view.js";
 
 const STATE = {
@@ -8,8 +12,17 @@ const STATE = {
   ERROR: "ERROR"
 };
 
-function logTechnicalError(error) {
+function logTechnicalError(error, context = null) {
   if (import.meta.env?.DEV) {
+    if (context) {
+      console.error(context.message || "Technical error", {
+        ...context,
+        error,
+        stack: error?.stack
+      });
+      return;
+    }
+
     console.error(error);
   }
 }
@@ -137,26 +150,21 @@ export function createAuthShell({ root, authController, protectedClient }) {
     destroyAuthView();
     setState(STATE.AUTHENTICATED);
 
-    root.innerHTML = `
-      <main class="auth-shell auth-shell--authenticated">
-        <div class="auth-shell__bar">
-          <div class="auth-shell__client-actions"></div>
-          <button class="auth-logout" type="button" data-auth-logout>
-            Log out
-          </button>
-        </div>
-        <div class="auth-shell__client"></div>
-      </main>
-    `;
+    root.innerHTML = graphShellMarkup({ includeLogout: true });
 
-    root.querySelector("[data-auth-logout]").addEventListener("click", handleLogout);
-    clientContainer = root.querySelector(".auth-shell__client");
+    const {
+      actionsContainer,
+      clientContainer: nextClientContainer,
+      logoutButton
+    } = graphShellElements(root);
+    logoutButton.addEventListener("click", handleLogout);
+    clientContainer = nextClientContainer;
     clientMounting = true;
     const activeMountGeneration = ++mountGeneration;
 
     try {
       await protectedClient.mount({
-        actionsContainer: root.querySelector(".auth-shell__client-actions"),
+        actionsContainer,
         container: clientContainer,
         session,
         auth: authController
@@ -175,7 +183,12 @@ export function createAuthShell({ root, authController, protectedClient }) {
 
       clientMounted = true;
     } catch (error) {
-      logTechnicalError(error);
+      logTechnicalError(error, {
+        message: "Protected client mount failed",
+        lifecycleStage: "protectedClient.mount",
+        startupMode: root.dataset.startupMode || "unknown",
+        userId: session?.user?.id || null
+      });
       clientMounted = false;
       try {
         if (protectedClient.unmount) {

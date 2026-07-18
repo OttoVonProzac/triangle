@@ -46,11 +46,11 @@ function oneLine(text) {
   return normalizeText(text).replace(/\s+/g, " ") || "Sans titre";
 }
 
-export function buildExportModel(graphState) {
+export function buildExportModel(graphState, { title = "Triangle des besoins" } = {}) {
   const graph = normalizeGraphState(graphState);
 
   return {
-    title: "Triangle des besoins",
+    title,
     graphId: graph.graphId,
     updatedAt: graph.updatedAt,
     sections: EXPORT_SECTIONS.map(section => ({

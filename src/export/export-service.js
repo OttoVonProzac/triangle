@@ -21,8 +21,24 @@ export function formatExportDate(now = new Date()) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-export function exportFilename(extension, { now = new Date() } = {}) {
-  return `triangle-${formatExportDate(now)}.${extension}`;
+export function sanitizeFilenameSegment(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+export function exportFilename(
+  extension,
+  { now = new Date(), title = "", prefix = "triangle" } = {}
+) {
+  const slug = sanitizeFilenameSegment(title);
+  const fallback = `${sanitizeFilenameSegment(prefix) || "triangle"}-${formatExportDate(now)}`;
+
+  return `${slug || fallback}.${extension}`;
 }
 
 function downloadBlob(blob, filename, documentRef = document) {
@@ -62,25 +78,43 @@ async function writeClipboardText(text, clipboard, documentRef = document) {
 
 export async function exportGraph({
   format,
+  graphDocument = null,
   graphState,
+  graphAdapter = null,
   stageElement,
   clipboard = typeof navigator === "undefined" ? null : navigator.clipboard,
   documentRef = typeof document === "undefined" ? null : document,
   now = new Date()
 }) {
-  const model = buildExportModel(graphState);
+  const activeState = graphDocument?.state || graphState;
+  const title = graphDocument?.title || "Triangle des besoins";
+  const activeDocument = graphDocument
+    ? { ...graphDocument, state: activeState }
+    : { title, state: activeState };
+  const filenameOptions = {
+    now,
+    title,
+    prefix: graphAdapter?.filenamePrefix || "triangle"
+  };
+  const model = buildExportModel(activeState, { title });
 
   if (format === "pdf") {
-    await exportStageToPdf(stageElement, {
-      filename: exportFilename("pdf", { now })
-    });
+    const filename = exportFilename("pdf", filenameOptions);
+    if (graphAdapter?.exportPdf) {
+      await graphAdapter.exportPdf({ stageElement, filename, graphDocument });
+    } else {
+      await exportStageToPdf(stageElement, { filename });
+    }
     return { ok: true, type: "download" };
   }
 
   if (format === "markdown") {
+    const markdown = graphAdapter?.buildMarkdown
+      ? graphAdapter.buildMarkdown(activeDocument)
+      : buildMarkdownExport(model);
     downloadBlob(
-      new Blob([buildMarkdownExport(model)], { type: "text/markdown;charset=utf-8" }),
-      exportFilename("md", { now }),
+      new Blob([markdown], { type: "text/markdown;charset=utf-8" }),
+      exportFilename("md", filenameOptions),
       documentRef
     );
     return { ok: true, type: "download" };
@@ -88,18 +122,21 @@ export async function exportGraph({
 
   if (format === "json") {
     downloadBlob(
-      new Blob([buildJsonExport(graphState)], {
+      new Blob([buildJsonExport(graphDocument ? activeDocument : activeState)], {
         type: "application/json;charset=utf-8"
       }),
-      exportFilename("json", { now }),
+      exportFilename("json", filenameOptions),
       documentRef
     );
     return { ok: true, type: "download" };
   }
 
   if (format === "text") {
+    const plainText = graphAdapter?.buildPlainText
+      ? graphAdapter.buildPlainText(activeDocument)
+      : buildPlainTextExport(model);
     await writeClipboardText(
-      buildPlainTextExport(model),
+      plainText,
       clipboard,
       documentRef
     );

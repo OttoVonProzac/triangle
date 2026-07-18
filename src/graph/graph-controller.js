@@ -20,6 +20,26 @@ function createTimeout(ms) {
   });
 }
 
+function timestampMillis(value) {
+  if (!value || typeof value !== "string") {
+    return 0;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function shouldUsePendingLocalDraft(remoteGraph, fallback) {
+  if (!fallback?.exists || !fallback.pending) {
+    return false;
+  }
+
+  return (
+    timestampMillis(fallback.graph?.updatedAt) >=
+    timestampMillis(remoteGraph?.updatedAt)
+  );
+}
+
 export class GraphController {
   constructor({
     remoteRepository,
@@ -73,11 +93,22 @@ export class GraphController {
     }
 
     if (remote.exists) {
+      const fallback = await this.#loadLocalFallback();
+      if (shouldUsePendingLocalDraft(remote.graph, fallback)) {
+        this.state = normalizeGraphState(fallback.graph, { now: this.now });
+        this.dirty = true;
+        this.revision = 1;
+        this.lastSavedRevision = 0;
+        this.#notify();
+        this.scheduleSave();
+        return this.getState();
+      }
+
       this.state = normalizeGraphState(remote.graph, { now: this.now });
       this.dirty = false;
       this.revision = 0;
       this.lastSavedRevision = 0;
-      this.#saveLocalSnapshot(this.state);
+      this.#saveLocalSnapshot(this.state, { pending: false });
       this.#notify();
       return this.getState();
     }
@@ -93,6 +124,7 @@ export class GraphController {
     this.dirty = true;
     this.revision += 1;
     this.#notify();
+    this.#saveLocalSnapshot(this.state, { pending: true });
     this.scheduleSave();
     return this.getState();
   }
@@ -170,7 +202,7 @@ export class GraphController {
     this.dirty = true;
     this.revision += 1;
     this.lastError = null;
-    this.#saveLocalSnapshot(this.state);
+    this.#saveLocalSnapshot(this.state, { pending: true });
     this.#notify();
     this.scheduleSave();
   }
@@ -257,7 +289,7 @@ export class GraphController {
           this.dirty = false;
           this.lastSavedRevision = revisionToSave;
           this.lastError = null;
-          this.#saveLocalSnapshot(this.state);
+          this.#saveLocalSnapshot(this.state, { pending: false });
           this.#setStatus(SAVE_STATUS.SAVED);
           return {
             ok: true,
@@ -305,13 +337,13 @@ export class GraphController {
     this.listeners.forEach(listener => listener(payload));
   }
 
-  #saveLocalSnapshot(graph) {
+  #saveLocalSnapshot(graph, { pending = this.dirty } = {}) {
     if (!this.localRepository || typeof this.localRepository.save !== "function") {
       return;
     }
 
     try {
-      this.localRepository.save(graph);
+      this.localRepository.save(graph, { pending });
     } catch (error) {
       this.lastError = error;
     }

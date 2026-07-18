@@ -4,11 +4,19 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   GraphStateValidationError,
-  MAX_GRAPH_BODY_BYTES,
   prepareGraphForStorage
 } from "../src/graph/graph-state.js";
+import {
+  assertSupportedGraphType,
+  GraphDocumentValidationError,
+  MAX_GRAPH_DOCUMENT_BODY_BYTES
+} from "../src/graph/graph-document.js";
 import { createSupabaseTokenVerifier, AuthVerificationError } from "./auth/verify-supabase-token.js";
 import { FileGraphStore, FileGraphStoreError } from "./persistence/file-graph-store.js";
+import {
+  FileGraphDocumentStore,
+  FileGraphDocumentStoreError
+} from "./persistence/file-graph-document-store.js";
 
 const DEFAULT_PORT = 4174;
 const DEFAULT_GRAPH_DATA_DIR = path.resolve(process.cwd(), "data", "users");
@@ -150,6 +158,10 @@ function statusForError(error) {
     return 400;
   }
 
+  if (error instanceof GraphDocumentValidationError) {
+    return 400;
+  }
+
   if (error instanceof FileGraphStoreError && error.code === "invalid_user_id") {
     return 401;
   }
@@ -158,7 +170,58 @@ function statusForError(error) {
     return 500;
   }
 
+  if (
+    error instanceof FileGraphDocumentStoreError &&
+    error.code === "invalid_user_id"
+  ) {
+    return 401;
+  }
+
+  if (
+    error instanceof FileGraphDocumentStoreError &&
+    error.code === "graph_not_found"
+  ) {
+    return 404;
+  }
+
+  if (
+    error instanceof FileGraphDocumentStoreError &&
+    (
+      error.code === "invalid_graph_id" ||
+      error.code === "path_traversal"
+    )
+  ) {
+    return 400;
+  }
+
+  if (error instanceof FileGraphDocumentStoreError) {
+    return 500;
+  }
+
   return 500;
+}
+
+function parseGraphCollectionRoute(pathname) {
+  const match = pathname.match(/^\/api\/graphs(?:\/([^/]+))?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    graphId: match[1] ? decodeURIComponent(match[1]) : null
+  };
+}
+
+function storeSupportsGraphDocuments(graphStore) {
+  return (
+    graphStore &&
+    typeof graphStore.listGraphs === "function" &&
+    typeof graphStore.createGraph === "function" &&
+    typeof graphStore.readGraph === "function" &&
+    typeof graphStore.writeGraphState === "function" &&
+    typeof graphStore.renameGraph === "function"
+  );
 }
 
 async function serveStatic(request, response, staticRoot) {
@@ -221,7 +284,7 @@ async function serveStatic(request, response, staticRoot) {
 export function createGraphApiServer({
   graphStore,
   verifyAccessToken,
-  bodyLimitBytes = MAX_GRAPH_BODY_BYTES,
+  bodyLimitBytes = MAX_GRAPH_DOCUMENT_BODY_BYTES,
   staticRoot = path.resolve(process.cwd(), "dist"),
   serveBuiltClient = true,
   now = () => new Date()
@@ -236,13 +299,119 @@ export function createGraphApiServer({
 
   return http.createServer(async (request, response) => {
     const url = new URL(request.url, "http://localhost");
+    const graphCollectionRoute = parseGraphCollectionRoute(url.pathname);
+    const supportsGraphDocuments = storeSupportsGraphDocuments(graphStore);
 
     try {
+      if (graphCollectionRoute) {
+        if (!supportsGraphDocuments) {
+          throw new ApiError(404, "not_found", "Not found.");
+        }
+
+        const verified = await verifyRequest(request, verifyAccessToken);
+        const userId = verified.userId;
+        const graphId = graphCollectionRoute.graphId;
+
+        if (!graphId) {
+          if (request.method === "GET") {
+            const type = url.searchParams.get("type");
+            if (type) {
+              assertSupportedGraphType(type);
+            }
+
+            const result = await graphStore.listGraphs(userId, {
+              ...(type ? { type } : {}),
+              now
+            });
+            writeJson(response, 200, {
+              graphs: result.graphs
+            });
+            return;
+          }
+
+          if (request.method === "POST") {
+            const body = await readJsonBody(request, bodyLimitBytes);
+            const graph = await graphStore.createGraph(userId, {
+              type: body.type,
+              title: body.title,
+              state: body.state,
+              now
+            });
+            writeJson(response, 201, {
+              graph
+            });
+            return;
+          }
+
+          throw new ApiError(405, "method_not_allowed", "Method not allowed.");
+        }
+
+        if (request.method === "GET") {
+          const result = await graphStore.readGraph(userId, graphId, { now });
+          if (!result.exists) {
+            throw new FileGraphDocumentStoreError(
+              "Graph document not found.",
+              "graph_not_found"
+            );
+          }
+
+          writeJson(response, 200, {
+            graph: result.graph
+          });
+          return;
+        }
+
+        if (request.method === "PUT") {
+          const body = await readJsonBody(request, bodyLimitBytes);
+          const state = body?.state && typeof body.state === "object"
+            ? body.state
+            : body;
+          const graph = await graphStore.writeGraphState(userId, graphId, state, {
+            now
+          });
+          writeJson(response, 200, {
+            graph
+          });
+          return;
+        }
+
+        if (request.method === "PATCH") {
+          const body = await readJsonBody(request, bodyLimitBytes);
+          const graph = await graphStore.renameGraph(userId, graphId, body.title, {
+            now
+          });
+          writeJson(response, 200, {
+            graph
+          });
+          return;
+        }
+
+        throw new ApiError(405, "method_not_allowed", "Method not allowed.");
+      }
+
       if (url.pathname === "/api/graph") {
         const verified = await verifyRequest(request, verifyAccessToken);
         const userId = verified.userId;
 
         if (request.method === "GET") {
+          if (supportsGraphDocuments) {
+            const result = await graphStore.readCompatibilityGraph(userId, {
+              now
+            });
+
+            if (!result.exists) {
+              writeJson(response, 200, { exists: false });
+              return;
+            }
+
+            writeJson(response, 200, {
+              exists: true,
+              graph: result.graph.state,
+              document: result.graph
+            });
+            return;
+          }
+
           const result = await graphStore.readGraph(userId);
           writeJson(response, 200, result);
           return;
@@ -250,6 +419,20 @@ export function createGraphApiServer({
 
         if (request.method === "PUT") {
           const body = await readJsonBody(request, bodyLimitBytes);
+
+          if (supportsGraphDocuments) {
+            const saved = await graphStore.writeCompatibilityGraph(userId, body, {
+              now
+            });
+            writeJson(response, 200, {
+              graph: saved.state,
+              document: saved,
+              schemaVersion: saved.state.schemaVersion,
+              updatedAt: saved.state.updatedAt
+            });
+            return;
+          }
+
           const graph = prepareGraphForStorage(body, { now });
           const saved = await graphStore.writeGraph(userId, graph);
           writeJson(response, 200, {
@@ -282,14 +465,14 @@ export function createServerFromEnv(env = process.env) {
   const graphDataDir = env.GRAPH_DATA_DIR || DEFAULT_GRAPH_DATA_DIR;
   const bodyLimitBytes = parseIntegerEnv(
     env.GRAPH_BODY_LIMIT_BYTES,
-    MAX_GRAPH_BODY_BYTES
+    MAX_GRAPH_DOCUMENT_BODY_BYTES
   );
   const maxFileBytes = parseIntegerEnv(
     env.GRAPH_FILE_SIZE_LIMIT_BYTES,
     undefined
   );
 
-  const graphStore = new FileGraphStore({
+  const graphStore = new FileGraphDocumentStore({
     rootDir: graphDataDir,
     ...(maxFileBytes ? { maxFileBytes } : {})
   });

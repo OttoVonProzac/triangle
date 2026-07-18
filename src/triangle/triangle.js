@@ -179,7 +179,16 @@ function getTriangleDebug() {
   return window.__triangleDebug;
 }
 
-export function mountTriangle(container, { actionsContainer, graphController }) {
+export function mountTriangle(
+  container,
+  {
+    actionsContainer,
+    graphController,
+    graphDocument = null,
+    graphAdapter = null,
+    getGraphDocument = null
+  }
+) {
   let disposed = false;
   const animationFrames = new Set();
   const cleanupListeners = [];
@@ -429,6 +438,9 @@ export function mountTriangle(container, { actionsContainer, graphController }) 
     mountExportControl({
       container: actionsContainer,
       graphController,
+      graphDocument,
+      graphAdapter,
+      getGraphDocument,
       stageElement: stage
     })
   );

@@ -27,6 +27,9 @@ function renderExportControl(container) {
 export function mountExportControl({
   container,
   graphController,
+  graphDocument = null,
+  graphAdapter = null,
+  getGraphDocument = null,
   stageElement
 }) {
   if (!container) {
@@ -72,9 +75,17 @@ export function mountExportControl({
     button.textContent = BUSY_LABEL;
 
     try {
+      const activeDocument = getGraphDocument
+        ? getGraphDocument()
+        : graphDocument;
+      const graphState = graphController.getState();
       const result = await exportGraph({
         format: select.value,
-        graphState: graphController.getState(),
+        graphDocument: activeDocument
+          ? { ...activeDocument, state: graphState }
+          : null,
+        graphState,
+        graphAdapter,
         stageElement
       });
 

@@ -7,6 +7,68 @@
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="/src/main.js"></script>
+  <script>
+    (function () {
+      if (window.location.protocol !== "file:") {
+        return;
+      }
+
+      window.__TRIANGLE_SKIP_REGULAR_STARTUP__ = true;
+
+      function renderFileInstruction() {
+        const root = document.querySelector("#app");
+        if (!root) {
+          return;
+        }
+
+        const normalizedPath = window.location.pathname.replace(/\\/g, "/");
+        const standalonePath = normalizedPath.endsWith("/dist/index.html")
+          ? "./triangle-standalone.html"
+          : "./dist/triangle-standalone.html";
+        const standaloneUrl = new URL(standalonePath, window.location.href).href;
+
+        root.innerHTML = `
+          <main class="setup-error">
+            <section class="auth-card" aria-labelledby="file-entry-title">
+              <h1 id="file-entry-title">Triangle</h1>
+              <p class="auth-status" data-tone="info">
+                Open <a href="${standaloneUrl}">triangle-standalone.html</a>
+                for the standalone local version.
+              </p>
+            </section>
+          </main>
+        `;
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", renderFileInstruction, { once: true });
+      } else {
+        renderFileInstruction();
+      }
+    })();
+  </script>
+  <script type="module">
+    if (!window.__TRIANGLE_SKIP_REGULAR_STARTUP__) {
+      import("./src/main.js").catch(error => {
+        console.error("Triangle startup module failed", {
+          error,
+          stack: error?.stack
+        });
+        const root = document.querySelector("#app");
+        if (root) {
+          root.innerHTML = `
+            <main class="setup-error">
+              <section class="auth-card" aria-labelledby="startup-error-title">
+                <h1 id="startup-error-title">Triangle</h1>
+                <p class="auth-status" data-tone="error">
+                  Triangle could not be opened. Open the browser console for details.
+                </p>
+              </section>
+            </main>
+          `;
+        }
+      });
+    }
+  </script>
 </body>
 </html>

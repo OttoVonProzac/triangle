@@ -5,12 +5,12 @@
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --configLoader runner",
     "server": "node server/server.js",
     "start": "node server/server.js",
     "test": "node --test",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "vite build --base=./ --configLoader runner && node scripts/build-standalone.js",
+    "preview": "vite preview --configLoader runner"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.53.0",
