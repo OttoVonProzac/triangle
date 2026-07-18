@@ -8,7 +8,7 @@ let unmountTriangle = null;
 let graphController = null;
 
 export const triangleClient = {
-  async mount({ container, session, auth }) {
+  async mount({ container, actionsContainer, session, auth }) {
     if (unmountTriangle) {
       unmountTriangle();
       unmountTriangle = null;
@@ -41,7 +41,10 @@ export const triangleClient = {
     });
 
     await graphController.initialize();
-    unmountTriangle = mountTriangle(container, { graphController });
+    unmountTriangle = mountTriangle(container, {
+      actionsContainer,
+      graphController
+    });
   },
 
   async unmount() {

@@ -35,16 +35,19 @@ body{
 }
 
 button,
-input{
+input,
+select{
   font:inherit;
 }
 
-button{
+button,
+select{
   cursor:pointer;
 }
 
 button:disabled,
-input:disabled{
+input:disabled,
+select:disabled{
   cursor:not-allowed;
 }
 

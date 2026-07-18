@@ -32,6 +32,37 @@
   color:#9a2d2d;
 }
 
+.export-toolbar{
+  display:flex;
+  gap:.45rem;
+  align-items:center;
+}
+
+.export-format,
+.export-button{
+  min-height:2.45rem;
+  border:1px solid rgba(23,26,34,.22);
+  border-radius:6px;
+  background:rgba(255,255,255,.9);
+  color:var(--ink);
+  font-weight:800;
+}
+
+.export-format{
+  max-width:9rem;
+  padding:.52rem 1.8rem .52rem .72rem;
+}
+
+.export-button{
+  min-width:5.8rem;
+  padding:.55rem .85rem;
+}
+
+.export-button:disabled,
+.export-format:disabled{
+  opacity:.72;
+}
+
 .stage{
   position:relative;
   width:min(99vw, calc(99vh * 4 / 3));

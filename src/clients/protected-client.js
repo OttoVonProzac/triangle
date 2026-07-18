@@ -2,6 +2,7 @@
  * @typedef {Object} ProtectedClient
  * @property {(context: {
  *   container: HTMLElement,
+ *   actionsContainer?: HTMLElement,
  *   session: Object,
  *   auth: import("../auth/auth-controller.js").AuthController
  * }) => void | Promise<void>} mount

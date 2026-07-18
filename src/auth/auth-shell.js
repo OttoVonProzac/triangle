@@ -9,7 +9,7 @@ const STATE = {
 };
 
 function logTechnicalError(error) {
-  if (import.meta.env.DEV) {
+  if (import.meta.env?.DEV) {
     console.error(error);
   }
 }
@@ -140,9 +140,7 @@ export function createAuthShell({ root, authController, protectedClient }) {
     root.innerHTML = `
       <main class="auth-shell auth-shell--authenticated">
         <div class="auth-shell__bar">
-          <button class="auth-print" type="button" data-auth-print>
-            Imprimer / PDF
-          </button>
+          <div class="auth-shell__client-actions"></div>
           <button class="auth-logout" type="button" data-auth-logout>
             Log out
           </button>
@@ -151,7 +149,6 @@ export function createAuthShell({ root, authController, protectedClient }) {
       </main>
     `;
 
-    root.querySelector("[data-auth-print]").addEventListener("click", handlePrint);
     root.querySelector("[data-auth-logout]").addEventListener("click", handleLogout);
     clientContainer = root.querySelector(".auth-shell__client");
     clientMounting = true;
@@ -159,6 +156,7 @@ export function createAuthShell({ root, authController, protectedClient }) {
 
     try {
       await protectedClient.mount({
+        actionsContainer: root.querySelector(".auth-shell__client-actions"),
         container: clientContainer,
         session,
         auth: authController
@@ -249,10 +247,6 @@ export function createAuthShell({ root, authController, protectedClient }) {
 
     await showUnauthenticated();
     authAction = null;
-  }
-
-  function handlePrint() {
-    window.print();
   }
 
   function handleAuthStateChange(event, session) {

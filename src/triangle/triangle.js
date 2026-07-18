@@ -1,3 +1,5 @@
+import { mountExportControl } from "../export/export-control.js";
+
 const triangleMarkup = `
 <div class="page">
   <p class="persistence-status" data-persistence-status aria-live="polite"></p>
@@ -116,7 +118,6 @@ professionnelle</div>
             <stop offset="0" stop-color="#fff8da"/>
             <stop offset="1" stop-color="#ffefae"/>
           </linearGradient>
-          <path id="leftLabelPath" d="M76 278 L200 70"/>
           <path id="rightLabelPath" d="M200 70 L324 278"/>
         </defs>
 
@@ -125,11 +126,10 @@ professionnelle</div>
                  stroke="#efc446"
                  stroke-width="5"/>
 
-        <text font-size="21" font-weight="800" fill="#171a22">
-          <textPath href="#leftLabelPath" startOffset="51%" text-anchor="middle"
-                    textLength="210" lengthAdjust="spacingAndGlyphs">
-            Développement de l’enfant
-          </textPath>
+        <text x="154" y="170" text-anchor="middle"
+              transform="rotate(-59 154 170)"
+              font-size="17" font-weight="800" fill="#171a22">
+          Développement de l'enfant
         </text>
 
         <text font-size="23" font-weight="800" fill="#171a22">
@@ -162,7 +162,7 @@ professionnelle</div>
 `;
 
 function getTriangleDebug() {
-  if (!import.meta.env.DEV || typeof window === "undefined") {
+  if (!import.meta.env?.DEV || typeof window === "undefined") {
     return null;
   }
 
@@ -179,12 +179,13 @@ function getTriangleDebug() {
   return window.__triangleDebug;
 }
 
-export function mountTriangle(container, { graphController }) {
+export function mountTriangle(container, { actionsContainer, graphController }) {
   let disposed = false;
   const animationFrames = new Set();
   const cleanupListeners = [];
   const mutationObservers = [];
   const cleanupSubscriptions = [];
+  const cleanupExternalControls = [];
   const debug = getTriangleDebug();
 
   if (!graphController) {
@@ -424,6 +425,13 @@ export function mountTriangle(container, { graphController }) {
 
   initializeBaseDemand();
   relayoutEverything();
+  cleanupExternalControls.push(
+    mountExportControl({
+      container: actionsContainer,
+      graphController,
+      stageElement: stage
+    })
+  );
 
   const resizeObserver = new ResizeObserver(() => relayoutEverything());
   resizeObserver.observe(stage);
@@ -442,6 +450,7 @@ export function mountTriangle(container, { graphController }) {
       debug.unmounts += 1;
     }
     cleanupListeners.forEach(cleanup => cleanup());
+    cleanupExternalControls.forEach(cleanup => cleanup());
     cleanupSubscriptions.forEach(cleanup => cleanup());
     mutationObservers.forEach(observer => {
       observer.disconnect();
